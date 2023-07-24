@@ -90,23 +90,24 @@ def process_data(df):
         logging.error(f'Error processing data: {e}', exc_info=True)
         raise
 
-def receive_message():
-    try:
-        response = sqs.receive_message(
-            QueueUrl=SQS_QUEUE_URL,
-            AttributeNames=['All'],
-            MaxNumberOfMessages=10,
-            MessageAttributeNames=['All'],
-            VisibilityTimeout=60,
-            WaitTimeSeconds=20
-        )
-    except ClientError as e:
-        logging.error(f'Error receiving message: {e}', exc_info=True)
-        time.sleep((2 ** RETRY_COUNT) + random.uniform(0, 1))  # Exponential backoff
-        RETRY_COUNT -= 1
-        if RETRY_COUNT == 0:
-            raise
-    return response
+def receive_message(retry_count=5):  # Set a default retry count; also accepts parameters
+    while retry_count > 0:
+        try:
+            response = sqs.receive_message(
+                QueueUrl=SQS_QUEUE_URL,
+                AttributeNames=['All'],
+                MaxNumberOfMessages=10,
+                MessageAttributeNames=['All'],
+                VisibilityTimeout=60,
+                WaitTimeSeconds=20
+            )
+            return response
+        except ClientError as e:
+            logging.error(f'Error receiving message: {e}', exc_info=True)
+            time.sleep((2 ** retry_count) + random.uniform(0, 1))  # Exponential backoff
+            retry_count -= 1
+    raise Exception("Exceeded maximum retry attempts for receiving message")
+
 
 def lambda_handler(event, context):
     start_time = time.time()
