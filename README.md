@@ -1,0 +1,2 @@
+# Squidward Tentacles and Spying on Outputs via Conformal Prediction
+ A computationally expensive, but vitally important means of interrogating non-conformity of a given output to an established distribution of outputs by a language model for the purpose of using p-values as a de-factor confidence interval whereby we sort to various SQS queues and append messaging that allows for more precise utilization of output
