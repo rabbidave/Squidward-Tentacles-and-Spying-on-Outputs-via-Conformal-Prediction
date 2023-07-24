@@ -14,7 +14,8 @@ from botocore.exceptions import ClientError
 import datetime
 import logging
 import random
-from transformers import AutoTokenizer, AutoModelWithLMHead
+from transformers import AutoTokenizer, AutoModelForCausalLM
+
 
 # Define constants
 CONFIDENCE_THRESHOLD_HIGH = 0.99
@@ -34,7 +35,9 @@ sqs = boto3.client('sqs')
 
 # Initialize language model and tokenizer
 tokenizer = AutoTokenizer.from_pretrained(LANGUAGE_MODEL)
-model = AutoModelWithLMHead.from_pretrained(LANGUAGE_MODEL)
+
+model = AutoModelForCausalLM.from_pretrained(LANGUAGE_MODEL)
+
 
 # Setup logging
 logging.basicConfig(level=logging.INFO)
@@ -146,4 +149,8 @@ def lambda_handler(event, context):
             time.sleep((2 ** RETRY_COUNT) + random.uniform(0, 1))  # Exponential backoff
             RETRY_COUNT -= 1
             if RETRY_COUNT == 0:
+
                 raise
+
+
+
