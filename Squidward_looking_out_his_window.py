@@ -14,7 +14,7 @@ from botocore.exceptions import ClientError
 import datetime
 import logging
 import random
-from transformers import GPT2Tokenizer, GPT2LMHeadModel
+from transformers import AutoTokenizer, AutoModelWithLMHead
 
 # Define constants
 CONFIDENCE_THRESHOLD_HIGH = 0.99
@@ -26,15 +26,15 @@ LOW_CONFIDENCE_SQS_QUEUE_URL = 'https://sqs.us-east-1.amazonaws.com/123456789012
 S3_BUCKET_NAME = 'my-bucket'
 BASELINE_LOG_LIKELIHOODS_FILE_KEY = 'baseline_log_likelihoods.parquet'
 RETRY_COUNT = 3  # Define a suitable retry count
-LANGUAGE_MODEL = 'gpt2'  # Specify the language model to use
+LANGUAGE_MODEL = 'bert-base-uncased'  # Specify the language model to use
 
 # Initialize boto3 clients
 s3 = boto3.client('s3')
 sqs = boto3.client('sqs')
 
 # Initialize language model and tokenizer
-tokenizer = GPT2Tokenizer.from_pretrained(LANGUAGE_MODEL)
-model = GPT2LMHeadModel.from_pretrained(LANGUAGE_MODEL)
+tokenizer = AutoTokenizer.from_pretrained(LANGUAGE_MODEL)
+model = AutoModelWithLMHead.from_pretrained(LANGUAGE_MODEL)
 
 # Setup logging
 logging.basicConfig(level=logging.INFO)
@@ -48,12 +48,20 @@ except ClientError as e:
     raise
 
 def compute_log_likelihood(text):
-    inputs = tokenizer(text, return_tensors='pt')
-    outputs = model(inputs, labels=inputs)
-    return -outputs.loss.item()
+    try:
+        inputs = tokenizer(text, return_tensors='pt')
+        outputs = model(inputs, labels=inputs)
+        return -outputs.loss.item()
+    except Exception as e:
+        logging.error(f'Error computing log-likelihood: {e}', exc_info=True)
+        raise
 
 def compute_p_value(log_likelihood):
-    return ((baseline_log_likelihoods >= log_likelihood).sum() + 0.5) / (len(baseline_log_likelihoods) + 1)
+    try:
+        return ((baseline_log_likelihoods > log_likelihood).sum() + 0.5 * (baseline_log_likelihoods == log_likelihood).sum()) / len(baseline_log_likelihoods)
+    except Exception as e:
+        logging.error(f'Error computing p-value: {e}', exc_info=True)
+        raise
 
 def send_message_to_sqs(df, queue_url):
     try:
@@ -67,17 +75,20 @@ def send_message_to_sqs(df, queue_url):
         raise
 
 def process_data(df):
-    log_likelihood = compute_log_likelihood(df['text'])
-    p_value = compute_p_value(log_likelihood)
-    if p_value >= CONFIDENCE_THRESHOLD_HIGH:
-        send_message_to_sqs(df["message"], SAFE_SQS_QUEUE_URL)
-    elif CONFIDENCE_THRESHOLD_LOW <= p_value < CONFIDENCE_THRESHOLD_HIGH:
-        df["message"] = df["message"] + " Note: this message achieved a confidence interval of 95% via conformal prediction; meaning there is still a 1/20 chance of error."
-        send_message_to_sqs(df["message"], STANDARD_SQS_QUEUE_URL)
-    else:
-        df["message"] = df["message"] + " Warning: this message achieved a confidence interval of below 95% using conformal prediction; meaning there is a greater than 1/20 chance of error. Use this output with caution."
-        send_message_to_sqs(df["message"], LOW_CONFIDENCE_SQS_QUEUE_URL)
-
+    try:
+        log_likelihood = compute_log_likelihood(df['text'])
+        p_value = compute_p_value(log_likelihood)
+        if p_value >= CONFIDENCE_THRESHOLD_HIGH:
+            send_message_to_sqs(df["message"], SAFE_SQS_QUEUE_URL)
+        elif CONFIDENCE_THRESHOLD_LOW <= p_value < CONFIDENCE_THRESHOLD_HIGH:
+            df["message"] = df["message"] + " Note: this message achieved a confidence interval of 95% via conformal prediction; meaning there is still a 1/20 chance of error."
+            send_message_to_sqs(df["message"], STANDARD_SQS_QUEUE_URL)
+        else:
+            df["message"] = df["message"] + " Warning: this message achieved a confidence interval of below 95% using conformal prediction; meaning there is a greater than 1/20 chance of error. Use this output with caution."
+            send_message_to_sqs(df["message"], LOW_CONFIDENCE_SQS_QUEUE_URL)
+    except Exception as e:
+        logging.error(f'Error processing data: {e}', exc_info=True)
+        raise
 
 def receive_message():
     try:
