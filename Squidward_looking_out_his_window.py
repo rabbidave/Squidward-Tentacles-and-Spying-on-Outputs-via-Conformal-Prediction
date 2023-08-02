@@ -18,12 +18,12 @@ from transformers import AutoTokenizer, AutoModelForCausalLM
 
 
 # Define constants
-CONFIDENCE_THRESHOLD_HIGH = 0.01
-CONFIDENCE_THRESHOLD_LOW = 0.05
+PREDICTION_THRESHOLD_HIGH = 0.01
+PREDICTION_THRESHOLD_LOW = 0.05
 SQS_QUEUE_URL = 'https://sqs.us-east-1.amazonaws.com/123456789012/MyQueue'
 SAFE_SQS_QUEUE_URL = 'https://sqs.us-east-1.amazonaws.com/123456789012/MyFirstQueue'
 STANDARD_SQS_QUEUE_URL = 'https://sqs.us-east-1.amazonaws.com/123456789012/MySecondQueue'
-LOW_CONFIDENCE_SQS_QUEUE_URL = 'https://sqs.us-east-1.amazonaws.com/123456789012/MyThirdQueue'
+LOW_PREDICTION_SQS_QUEUE_URL = 'https://sqs.us-east-1.amazonaws.com/123456789012/MyThirdQueue'
 S3_BUCKET_NAME = 'my-bucket'
 BASELINE_LOG_LIKELIHOODS_FILE_KEY = 'baseline_log_likelihoods.parquet'
 RETRY_COUNT = 3  # Define a suitable retry count
@@ -81,14 +81,14 @@ def process_data(df):
     try:
         log_likelihood = compute_log_likelihood(df['text'])
         p_value = compute_p_value(log_likelihood)
-        if p_value <= CONFIDENCE_THRESHOLD_HIGH:
+        if p_value <= PREDICTION_THRESHOLD_HIGH:
             send_message_to_sqs(df["message"], SAFE_SQS_QUEUE_URL)
-        elif CONFIDENCE_THRESHOLD_HIGH < p_value <= CONFIDENCE_THRESHOLD_LOW:
+        elif PREDICTION_THRESHOLD_HIGH < p_value <= PREDICTION_THRESHOLD_LOW:
             df["message"] = df["message"] + " Note: this message achieved a pseudo-confidence interval of 95% via conformal prediction; meaning there is still a 1/20 chance of error."
             send_message_to_sqs(df["message"], STANDARD_SQS_QUEUE_URL)
         else:
             df["message"] = df["message"] + " Warning: this message achieved a pseudo-confidence interval of below 95% using conformal prediction; meaning there is a greater than 1/20 chance of error. Use this output with caution."
-            send_message_to_sqs(df["message"], LOW_CONFIDENCE_SQS_QUEUE_URL)
+            send_message_to_sqs(df["message"], LOW_PREDICTION_SQS_QUEUE_URL)
     except Exception as e:
         logging.error(f'Error processing data: {e}', exc_info=True)
         raise
