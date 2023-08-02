@@ -84,10 +84,10 @@ def process_data(df):
         if p_value <= PREDICTION_THRESHOLD_HIGH:
             send_message_to_sqs(df["message"], SAFE_SQS_QUEUE_URL)
         elif PREDICTION_THRESHOLD_HIGH < p_value <= PREDICTION_THRESHOLD_LOW:
-            df["message"] = df["message"] + " Note: this message achieved a pseudo-confidence interval of 95% via conformal prediction; meaning there is still a 1/20 chance of error."
+            df["message"] = df["message"] + " Note: this message achieved a prediction interval of 95% via conformal prediction; meaning there is still a 1/20 chance of error."
             send_message_to_sqs(df["message"], STANDARD_SQS_QUEUE_URL)
         else:
-            df["message"] = df["message"] + " Warning: this message achieved a pseudo-confidence interval of below 95% using conformal prediction; meaning there is a greater than 1/20 chance of error. Use this output with caution."
+            df["message"] = df["message"] + " Warning: this message achieved a prediction interval of below 95% using conformal prediction; meaning there is a greater than 1/20 chance of error. Use this output with caution."
             send_message_to_sqs(df["message"], LOW_PREDICTION_SQS_QUEUE_URL)
     except Exception as e:
         logging.error(f'Error processing data: {e}', exc_info=True)
