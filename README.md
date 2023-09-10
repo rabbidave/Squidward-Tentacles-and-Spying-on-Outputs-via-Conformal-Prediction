@@ -8,7 +8,7 @@
 ## Description:
 A set of serverless functions designed to assist in the monitoring of outputs from language models, specifically inspection of messages for non-conformity to pre-calulcated log-likelihood and the appending of warnings based on the achieved log-likelihood and p-values for new messages
 
-i.e. instead of doing batch or event-driven prediction of the range of possible values, herein we compare individual outputs to previously established outputs and measure non-conformity as a heuristic for whether not not they "would have" fallen outside the expected range
+i.e. instead of doing batch or event-driven prediction of the range of possible values, herein we compare individual outputs to previously established outputs and measure non-conformity as a heuristic for whether not not they "would have" fallen outside the expected range, thus representing non-conforming outputs which should be labeled as such.
 
 Note: BERT was established as default, given the flexibility in swapping transformers models, but the quality of your model and resultant log-likelihood has a direct effect on the quality of your p-values and their utility as an indicator of non-conformity
 
